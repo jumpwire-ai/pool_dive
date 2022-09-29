@@ -72,9 +72,9 @@ No, not done.
 
 ## Process tree
 
-When the `:db_connection` application is first started, `DBConnection.ConnectionPool.Supervisor` is run as a dynamic supervisor. [^1] This happens automatically when `db_connection` is included as a mix dependency.
+When the `:db_connection` application is first started, `DBConnection.ConnectionPool.Supervisor` is run as a dynamic supervisor. [^3] This happens automatically when `db_connection` is included as a mix dependency.
 
-[^1]: [supervision tree](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/app.ex#L9)
+[^3]: [supervision tree](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/app.ex#L9)
 
 ```elixir
 # Application supervision tree
@@ -83,7 +83,7 @@ Kino.Process.app_tree(:db_connection)
 
 ## ConnectionPool setup
 
-The `DBConnection.ConnectionPool` process does a few things when it is initializing. Mostly it sets up timers for things like idle timeouts. It also call `DBConnection.ConnectionPool.Pool.start_supervised/3` with the ETS queue it created. [^1]
+The `DBConnection.ConnectionPool` process does a few things when it is initializing. Mostly it sets up timers for things like idle timeouts. It also call `DBConnection.ConnectionPool.Pool.start_supervised/3` with the ETS queue it created. [^4]
 
 <!-- livebook:{"force_markdown":true} -->
 
@@ -103,7 +103,7 @@ This causes the `DBConnection.Watcher` GenServer process (running under the appl
 
 Side note: normally the new process would be only be linked to its parent supervisor, but `DBConnection.Watcher` will monitor the calling `DBConnection.ConnectionPool` proces and terminate the new process when the calling process stops. This effectively links the two processes together.
 
-`DBConnection.ConnectionPool.Pool` is itself another supervisor. When its `init/1` function is called, the `:pool_size` option is checked with a default of 1. This parameter is passed all the way down from the original `Postgrex.start_link/1` call and determines how many children the supervisor will have. [^2]
+`DBConnection.ConnectionPool.Pool` is itself another supervisor. When its `init/1` function is called, the `:pool_size` option is checked with a default of 1. This parameter is passed all the way down from the original `Postgrex.start_link/1` call and determines how many children the supervisor will have. [^5]
 
 <!-- livebook:{"force_markdown":true} -->
 
@@ -116,11 +116,11 @@ def init({owner, tag, mod, opts}) do
 end
 ```
 
-Each child in the pool is a `DBConnection.Connection`, which is an implementation of the [`Connection` behaviour](https://github.com/elixir-ecto/connection). [^3] The adapter can specify callbacks to run after the connection is established if it chooses to.
+Each child in the pool is a `DBConnection.Connection`, which is an implementation of the [`Connection` behaviour](https://github.com/elixir-ecto/connection). [^6] The adapter can specify callbacks to run after the connection is established if it chooses to.
 
-[^1]: [start pool process](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection_pool.ex#L44)
-[^2]: [pool process definition](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection_pool/pool.ex#L16-L21)
-[^3]: [connection start_link](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection.ex#L28)
+[^4]: [start pool process](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection_pool.ex#L44)
+[^5]: [pool process definition](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection_pool/pool.ex#L16-L21)
+[^6]: [connection start_link](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection.ex#L28)
 
 ## Connection state
 
@@ -138,7 +138,7 @@ Most of the state is generic, but the nested `state` key is specific to the call
 
 ## Adding the connection to the pool
 
-After the connection is established, `DBConnection.Holder.update/4` is called. [^1] This creates a new public ETS table and gives ownership of it to the `DBConnection.ConnectionPool` process.
+After the connection is established, `DBConnection.Holder.update/4` is called. [^7] This creates a new public ETS table and gives ownership of it to the `DBConnection.ConnectionPool` process.
 
 <!-- livebook:{"force_markdown":true} -->
 
@@ -156,12 +156,12 @@ end
 
 ```
 
-When the ownership message is received, the ConnectionPool process will check its queue and try to pull off the first message. [^2] Since the queue starts empty, this is a noop and the pool will just transition from `:busy` to `:ready`. An entry of `{timestamp, holder}` is inserted into the queue where holder is a reference to the ETS table created by `DBConnection.Holder`.
+When the ownership message is received, the ConnectionPool process will check its queue and try to pull off the first message. [^8] Since the queue starts empty, this is a noop and the pool will just transition from `:busy` to `:ready`. An entry of `{timestamp, holder}` is inserted into the queue where holder is a reference to the ETS table created by `DBConnection.Holder`.
 
 When the process is in it's `:ready` state, the ETS queue will always contain either this holder tuple or nothing. When the process is `:busy`, the queue will instead have queries waiting for an available connection.
 
-[^1]: [pool_update/2](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection.ex#L398)
-[^2]: [ConnectionPool checkin](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection_pool.ex#L237)
+[^7]: [pool_update/2](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection.ex#L398)
+[^8]: [ConnectionPool checkin](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/connection_pool.ex#L237)
 
 ```elixir
 # A single entry exists in the queue that contains a reference to the holder ETS
@@ -207,9 +207,9 @@ Kino.ETS.new(queue)
 
 ## Queueing and querying
 
-Now that we understand the processes, the remaining question is how queries get queued and sent to the underlying connections. `Postgrex.query/4` takes our PID as its first argument. That gets passed to `DBConnection.prepare_execute/4` [^1] - I'll spare you the full stacktrace but eventually `DBConnection.Holder.checkout_call/5` is called.
+Now that we understand the processes, the remaining question is how queries get queued and sent to the underlying connections. `Postgrex.query/4` takes our PID as its first argument. That gets passed to `DBConnection.prepare_execute/4` [^9] - I'll spare you the full stacktrace but eventually `DBConnection.Holder.checkout_call/5` is called.
 
-This function sends a message to the `DBConnection.ConnectionPool` process asking to checkout a connection. [^2] One of the parameters sent is whether queueing is allowed, which is controlled by the `:queue` parameter and defaults to `true`. If the `DBConnection.ConnectionPool` process is in a `:busy` state then the request is either inserted into the ETS queue or rejected, depending on the `:queue` parameter. Assuming the process is `:ready`, the first holder tuple is deleted from the queue and ownership of that holder ETS reference is given away to the calling process. If no more holder entries are available, the process is marked as `:busy`.
+This function sends a message to the `DBConnection.ConnectionPool` process asking to checkout a connection. [^10] One of the parameters sent is whether queueing is allowed, which is controlled by the `:queue` parameter and defaults to `true`. If the `DBConnection.ConnectionPool` process is in a `:busy` state then the request is either inserted into the ETS queue or rejected, depending on the `:queue` parameter. Assuming the process is `:ready`, the first holder tuple is deleted from the queue and ownership of that holder ETS reference is given away to the calling process. If no more holder entries are available, the process is marked as `:busy`.
 
 `DBConnection.Holder` waits for the message from the ETS ownership transfer (within the calling process). It marks the connection contained within the holder ETS entry as locked and returns the connection.
 
@@ -233,8 +233,8 @@ end
 
 The connection is now checked out and used by DBConnection to make the query. Once the query is complete, `Holder.checkin/1` is called with the connection. The holder ETS table is updated and ownership is transferred back to the `DBConnection.ConnectionPool` process. If the process was busy (which indicates that all connections were checkout out) then the queue is checked for any waiting queries and the steps repeat.
 
-[^1]: [Postgrex query](https://github.com/elixir-ecto/postgrex/blob/master/lib/postgrex.ex#L340)
-[^2]: [Holder checkout_call](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/holder.ex#L286)
+[^9]: [Postgrex query](https://github.com/elixir-ecto/postgrex/blob/master/lib/postgrex.ex#L340)
+[^10]: [Holder checkout_call](https://github.com/elixir-ecto/db_connection/blob/bb311516b9b16731308d98f5fac07ec6c66b1322/lib/db_connection/holder.ex#L286)
 
 ## Summary
 
