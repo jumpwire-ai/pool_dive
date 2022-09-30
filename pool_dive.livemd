@@ -10,7 +10,7 @@ Mix.install([
 
 ## Intro
 
-[DBConnection](https://hex.pm/packages/db_connection) is a foundation Elixir library powering many database specific adapters. Post of the time you don't need to know much about it, since the adapter libraries abstract away most of its inner workings.
+[DBConnection](https://hex.pm/packages/db_connection) is a foundation Elixir library powering many database specific adapters. Most of the time you don't need to know much about it, since the adapter libraries abstract away most of its inner workings.
 
 While looking into some performance issues, my team realized we didn't have a shared mental modal of how pooling works with DBConnection. It is largely undocumented, and a quick glance at the code wasn't enough to let us know how it worked. So, like any rational engineer, I went way too deep in the code and traced through everything that was happening for pooled database connections.
 
